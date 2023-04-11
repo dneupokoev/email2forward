@@ -55,9 +55,9 @@ CONST_sender_telegram = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 #
 # *** НАСТРОЙКИ ***
 #
-# для избыточного логирования True, иначе False
-DEBUG = True
-# DEBUG = False
+# для режима тестирования True (избыточное логирование, некоторые другие функции), иначе False
+# DEBUG = True
+DEBUG = False
 #
 # создаем папку для логов:
 # sudo mkdir /var/lib/email2forward

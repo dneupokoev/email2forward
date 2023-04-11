@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 # email2forward
 # https://github.com/dneupokoev/email2forward
-dv_file_version = '230331.01'
 #
 # Email to Forward: получает email, парсит его и отправляет содержимое письма в мессенджеры.
-
+#
+dv_file_version = '230411.01'
+#
+# 230411.01:
+# - добавлено распознавание текста на картинках и если есть "нужный" текст, то данная картинка будет отправлена
+#
+# 230331.01:
+# - базовая стабильная версия (полностью протестированная и отлаженная)
+#
 import settings
 import os
 import re
 import sys
+import numpy as np
 import platform
 import configparser
 import imaplib
@@ -18,6 +26,10 @@ import datetime
 import time
 import json
 import requests
+import pytesseract
+import cv2
+from io import BytesIO
+
 #
 #
 from pathlib import Path
@@ -44,27 +56,6 @@ else:
     logger.add(settings.PATH_TO_LOG + dv_file_name + ".log", level="INFO", rotation="00:00", retention='30 days', compression="gz", encoding="utf-8")
     logger.add(sys.stderr, level="INFO")
 logger.enable(dv_file_name)  # даем имя логированию
-logger.info(f'***')
-logger.info(f'BEGIN')
-try:
-    # Получаем версию ОС
-    logger.info(f'os.version = {platform.platform()}')
-except Exception as error:
-    # Не удалось получить версию ОС
-    logger.error(f'ERROR - os.version: {error = }')
-try:
-    # Получаем версию питона
-    logger.info(f'python.version = {sys.version}')
-except Exception as error:
-    # Не удалось получить версию питона
-    logger.error(f'ERROR - python.version: {error = }')
-logger.info(f'{dv_path_main = }')
-logger.info(f'{dv_file_name = }')
-logger.info(f'{dv_file_version = }')
-logger.debug(f'{settings.DEBUG = }')
-logger.debug(f'{settings.PATH_TO_LIB = }')
-logger.debug(f'{settings.PATH_TO_LOG = }')
-
 
 #
 #
@@ -184,6 +175,10 @@ def check_email():
                     if "bitrix24" in dv_mail_subj:
                         dv_4send_bitrix24 = dv_mail_subj['bitrix24']
                     #
+                    dv_4send_only_with_word_in_pic = ''
+                    if "only_with_word_in_pic" in dv_mail_subj:
+                        dv_4send_only_with_word_in_pic = dv_mail_subj['only_with_word_in_pic']
+                    #
                     # если нужно отправлять title, то отправим
                     if dv_4send_title != '' and re.search(r't', dv_4send_send.lower()):
                         #
@@ -257,7 +252,38 @@ def check_email():
                                         if re.search(r'p', dv_4send_send.lower()):
                                             if dv_4send_telegram != '':
                                                 try:
-                                                    dv_bot_telegram.send_photo(dv_4send_telegram, part.get_payload(decode=True))
+                                                    # конвертируем bytes в изображение
+                                                    dv_in_image_for_send = BytesIO(part.get_payload(decode=True))
+                                                    #
+                                                    # если на картинке нужно искать слово, то будем искать
+                                                    if dv_4send_only_with_word_in_pic == '':
+                                                        dv_is_pic_for_send = 1
+                                                    else:
+                                                        dv_is_pic_for_send = 0
+                                                        # читаем изображение с помощью OpenCV
+                                                        dv_in_image_bytes = BytesIO(part.get_payload(decode=True))
+                                                        dv_in_bytes = np.asarray(bytearray(dv_in_image_bytes.read()), dtype=np.uint8)
+                                                        dv_etl_img = cv2.imdecode(dv_in_bytes, cv2.IMREAD_COLOR)
+                                                        # dv_etl_img = cv2.imdecode(dv_in_bytes, cv2.IMREAD_GRAYSCALE)
+                                                        # получаем строку
+                                                        # dv_image_string = pytesseract.image_to_string(dv_etl_img)
+                                                        # logger.debug(f'{dv_email_uid_first} - {dv_image_string = }')
+                                                        # получаем больше информации, включая слова с соответствующими им шириной, высотой и координатами x, y - это позволит нам сделать много полезного
+                                                        dv_image_data = pytesseract.image_to_data(dv_etl_img, output_type=pytesseract.Output.DICT)
+                                                        logger.debug(f'{dv_email_uid_first} - {dv_image_data["text"] = }')
+                                                        # получаем все вхождения нужного слова
+                                                        dv_word_occurences = [i for i, word in enumerate(dv_image_data["text"]) if word == dv_4send_only_with_word_in_pic]
+                                                        # если слово нашли, то картинку будем отправлять
+                                                        if len(dv_word_occurences) > 0:
+                                                            logger.debug(f'{dv_email_uid_first} - {dv_word_occurences = }')
+                                                            dv_is_pic_for_send = 1
+                                                        del dv_word_occurences
+                                                        del dv_image_data
+                                                        del dv_etl_img
+                                                        del dv_in_bytes
+                                                        del dv_in_image_bytes
+                                                    if dv_is_pic_for_send == 1:
+                                                        dv_bot_telegram.send_photo(dv_4send_telegram, dv_in_image_for_send, caption='')
                                                 except Exception as error:
                                                     # print(f'dv_4send_telegram - ERROR: {error = }')
                                                     logger.error(f'{dv_email_uid_first} - dv_4send_telegram - ERROR: {error = }')
@@ -313,6 +339,10 @@ def check_email():
                                     except Exception as error:
                                         # print(f'dv_4send_bitrix24 - ERROR: {error = }')
                                         logger.error(f'{dv_email_uid_first} - dv_4send_bitrix24 - ERROR: {error = }')
+                    # #
+                    # # если включено тестирование, то письма не будут отмечаться прочитанными
+                    # if settings.DEBUG is True:
+                    #     mail.uid('STORE', dv_mail_list[0], '-FLAGS', '\SEEN')  # Отметить как непрочитанное
                 else:
                     # принудительно меняем статус письма "прочитано": (-) означает УДАЛИТЬ флаг (станет НЕпрочитано), а (+) означает ДОБАВИТЬ флаг (станет ПРОЧИТАНО)
                     mail.uid('STORE', dv_mail_list[0], '-FLAGS', '\SEEN')  # Отметить как непрочитанное
@@ -322,8 +352,29 @@ def check_email():
                 logger.warning(f'{dv_email_uid_first} - Отправитель не из списка settings.CONST_white_list_email_sender - {dv_mail_from}')
 
 
+
 if __name__ == '__main__':
     dv_time_begin = time.time()
+    logger.info(f'***')
+    logger.info(f'BEGIN')
+    try:
+        # Получаем версию ОС
+        logger.info(f'os.version = {platform.platform()}')
+    except Exception as error:
+        # Не удалось получить версию ОС
+        logger.error(f'ERROR - os.version: {error = }')
+    try:
+        # Получаем версию питона
+        logger.info(f'python.version = {sys.version}')
+    except Exception as error:
+        # Не удалось получить версию питона
+        logger.error(f'ERROR - python.version: {error = }')
+    logger.info(f'{dv_path_main = }')
+    logger.info(f'{dv_file_name = }')
+    logger.info(f'{dv_file_version = }')
+    logger.debug(f'{settings.DEBUG = }')
+    logger.debug(f'{settings.PATH_TO_LIB = }')
+    logger.debug(f'{settings.PATH_TO_LOG = }')
     #
     logger.info(f"{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')}")
     dv_lib_path_ini = ''

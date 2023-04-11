@@ -11,6 +11,8 @@ numpy = "*"
 pandas = "*"
 jupyter = "*"
 ipykernel = "*"
+pytesseract = "*"
+opencv-python = "*"
 
 [dev-packages]
 
