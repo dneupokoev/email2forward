@@ -4,7 +4,10 @@
 #
 # Email to Forward: получает email, парсит его и отправляет содержимое письма в мессенджеры.
 #
-dv_file_version = '230411.01'
+dv_file_version = '230414.01'
+#
+# 230414.01:
+# - добавлено распознавание "цветного пятна" на картинках: если пятно/пятна указанного цвета (включая оттенки), то данная картинка будет отправлена. Возможные значения: black, white, red, green, blue, yellow, purple, orange, gray
 #
 # 230411.01:
 # - добавлено распознавание текста на картинках и если есть "нужный" текст, то данная картинка будет отправлена
@@ -29,7 +32,20 @@ import requests
 import pytesseract
 import cv2
 from io import BytesIO
-
+#
+#
+# Диапазон HSV для цветов
+CONST_color_dict_HSV = {'black': [[180, 255, 30], [0, 0, 0]],
+                        'white': [[180, 18, 255], [0, 0, 231]],
+                        'red': [[9, 255, 255], [0, 50, 70]],
+                        'red1': [[180, 255, 255], [159, 50, 70]],
+                        'red2': [[9, 255, 255], [0, 50, 70]],
+                        'green': [[89, 255, 255], [36, 50, 70]],
+                        'blue': [[128, 255, 255], [90, 50, 70]],
+                        'yellow': [[35, 255, 255], [25, 50, 70]],
+                        'purple': [[158, 255, 255], [129, 50, 70]],
+                        'orange': [[24, 255, 255], [10, 50, 70]],
+                        'gray': [[180, 18, 230], [0, 0, 40]]}
 #
 #
 from pathlib import Path
@@ -179,6 +195,12 @@ def check_email():
                     if "only_with_word_in_pic" in dv_mail_subj:
                         dv_4send_only_with_word_in_pic = dv_mail_subj['only_with_word_in_pic']
                     #
+                    dv_4send_only_with_color_in_pic = ''
+                    if "only_with_color_in_pic" in dv_mail_subj:
+                        dv_4send_only_with_color_in_pic = dv_mail_subj['only_with_color_in_pic']
+                        if dv_4send_only_with_color_in_pic not in CONST_color_dict_HSV:
+                            dv_4send_only_with_color_in_pic = ''
+                    #
                     # если нужно отправлять title, то отправим
                     if dv_4send_title != '' and re.search(r't', dv_4send_send.lower()):
                         #
@@ -282,6 +304,47 @@ def check_email():
                                                         del dv_etl_img
                                                         del dv_in_bytes
                                                         del dv_in_image_bytes
+                                                    if dv_is_pic_for_send == 1:
+                                                        # ищем на картинке цветное пятно
+                                                        if dv_4send_only_with_color_in_pic == '':
+                                                            dv_is_pic_for_send = 1
+                                                        else:
+                                                            dv_is_pic_for_send = 0
+                                                            # читаем изображение с помощью OpenCV
+                                                            dv_in_image_bytes = BytesIO(part.get_payload(decode=True))
+                                                            dv_in_bytes = np.asarray(bytearray(dv_in_image_bytes.read()), dtype=np.uint8)
+                                                            dv_etl_img = cv2.imdecode(dv_in_bytes, cv2.IMREAD_COLOR)
+                                                            dv_img_hsv = cv2.cvtColor(dv_etl_img, cv2.COLOR_BGR2HSV)
+                                                            #
+                                                            # HSV фильтр для объектов, которые будем искать на картинке (диапазон цветов)
+                                                            # dv_hsv_min = np.array((0, 255, 255), np.uint8)
+                                                            dv_hsv_min = np.array(CONST_color_dict_HSV[dv_4send_only_with_color_in_pic][1], np.uint8)
+                                                            # dv_hsv_max = np.array((10, 255, 255), np.uint8)
+                                                            dv_hsv_max = np.array(CONST_color_dict_HSV[dv_4send_only_with_color_in_pic][0], np.uint8)
+                                                            #
+                                                            # применяем цветовой фильтр
+                                                            dv_thresh = cv2.inRange(dv_img_hsv, dv_hsv_min, dv_hsv_max)
+                                                            #
+                                                            # Удаляем слишком мелкие элементы
+                                                            # Прямоугольник: MORPH_RECT, Форма креста: MORPH_CORSS, Форма овала: MORPH_ELLIPSE
+                                                            # dv_img_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+                                                            dv_img_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                                                            dv_thresh = cv2.morphologyEx(dv_thresh, cv2.MORPH_OPEN, dv_img_kernel)
+                                                            #
+                                                            # вычисляем моменты изображения
+                                                            dv_img_moments = cv2.moments(dv_thresh, 1)
+                                                            # dv_m_01 = dv_img_moments['m01']
+                                                            # dv_m_10 = dv_img_moments['m10']
+                                                            dv_m_00 = dv_img_moments['m00']
+                                                            # print(dv_m_01)
+                                                            # print(dv_m_10)
+                                                            # print(dv_m_00)
+                                                            logger.debug(f'{dv_email_uid_first} - {dv_4send_only_with_color_in_pic = } - {dv_m_00 = }')
+                                                            #
+                                                            # будем реагировать только на те моменты, которые содержат больше X пикселей
+                                                            if dv_m_00 > 100:
+                                                                dv_is_pic_for_send = 1
+                                                    #
                                                     if dv_is_pic_for_send == 1:
                                                         dv_bot_telegram.send_photo(dv_4send_telegram, dv_in_image_for_send, caption='')
                                                 except Exception as error:
