@@ -6,6 +6,9 @@
 #
 dv_file_version = '230414.01'
 #
+# 230522.01:
+# - добавлено распознавание текста с картинки и преобразования его в json (сохранение и прочее пока не сделано, пока только тестировать можно)
+#
 # 230414.01:
 # - добавлено распознавание "цветного пятна" на картинках: если есть пятно/пятна указанного цвета (включая оттенки), то данная картинка будет отправлена. Возможные значения: black, white, red, green, blue, yellow, purple, orange, gray
 #
@@ -28,6 +31,7 @@ import telebot
 import datetime
 import time
 import json
+import ast
 import requests
 import pytesseract
 import cv2
@@ -270,6 +274,25 @@ def check_email():
                                     if re.search(r'\.png$|\.jpg$|\.jpeg$', filename.lower()):
                                         # print(filename)
                                         logger.debug(f'{dv_email_uid_first} - {filename = }')
+                                        # если нужно на картинке распознать json и отправить:
+                                        if re.search(r'j', dv_4send_send.lower()):
+                                            try:
+                                                # конвертируем bytes в изображение
+                                                dv_in_image_bytes = BytesIO(part.get_payload(decode=True))
+                                                dv_in_bytes = np.asarray(bytearray(dv_in_image_bytes.read()), dtype=np.uint8)
+                                                dv_etl_img = cv2.imdecode(dv_in_bytes, cv2.IMREAD_GRAYSCALE)
+                                                # распознаем текст
+                                                dv_json = pytesseract.image_to_string(dv_etl_img)
+                                                # Удаляем переносы строки в распознанном тексте (разворачиваем в одну строку)
+                                                dv_json = dv_json.replace('\n', '')
+                                                dv_dict = ast.literal_eval(dv_json)
+                                                dv_json = json.dumps(dv_dict)
+                                                dv_bot_telegram.send_message(dv_4send_telegram, dv_dict)
+                                                dv_bot_telegram.send_message(dv_4send_telegram, dv_json)
+                                                # печатаем в лог
+                                                logger.debug(f'{dv_email_uid_first} - {dv_json = }')
+                                            except Exception as error:
+                                                logger.error(f'{dv_email_uid_first} - dv_parse_json - ERROR: {error = }')
                                         # если нужно отправлять pictures, то отправим
                                         if re.search(r'p', dv_4send_send.lower()):
                                             if dv_4send_telegram != '':
