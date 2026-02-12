@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # email2forward
 # https://github.com/dneupokoev/email2forward
-# 230331
+# 260212
 #
 # Email to Forward: получает email, парсит его и отправляет содержимое письма в мессенджеры.
 #
@@ -31,11 +31,11 @@ CONST_white_list_email_sender = [
 # 1. Залогиниться под "НУЖНЫМ" пользователем (от имени которого будем отправлять сообщения) в bitrix24
 # 2. Зайти в настройки, перейти в раздел "Приложения" и создать новое приложение типа "Входящий вебхук" (можно в поле поиск ввести "Разработчикам" -> "Другое")
 # 3. В поле "Генератор запросов" добавить метод "im.message.add" и сохранить.
-# 4. Полученный токен можно использовать для доступа к API (поле Вебхук для вызова rest api).
+# 4. Вебхук должен иметь права: imbot, disk
+# 5. Полученный токен можно использовать для доступа к API (поле Вебхук для вызова rest api).
 # CONST_sender_bitrix24 = 'значение_из_поля "Вебхук для вызова rest api"/im.message.add.json'
-CONST_sender_bitrix24 = 'https://bitrix.cmrt.ru/rest/XXXX/YYYYYYYYYYYYYYYY/im.message.add.json'
-# Как узнать идентификатор группы bitrix24:
-# /getDialogId – написать это в чат и получим идентификатор данного чата для внешних интеграций
+# CONST_sender_bitrix24 = 'https://bitrix.cmrt.ru/rest/XXXX/YYYYYYYYYYYYYYYY/'
+CONST_sender_bitrix24 = 'https://bitrix.cmrt.ru/rest/XXXX/YYYYYYYYYYYYYYYY/'
 #
 #
 # Доступ к отправителю в TELEGRAM
@@ -44,6 +44,7 @@ CONST_sender_bitrix24 = 'https://bitrix.cmrt.ru/rest/XXXX/YYYYYYYYYYYYYYYY/im.me
 # 1. Открыть диалог в Telegram с ботом @BotFather и нажать кнопку /start (при первом запуске).
 # 2. Отправить команду /newbot для создания бота.
 # 3. Следовать инструкциям.
+# CONST_sender_telegram = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 CONST_sender_telegram = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 # Как узнать идентификатор группы telegram:
 # 1. Добавить бота в нужную группу;
@@ -56,8 +57,8 @@ CONST_sender_telegram = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 # *** НАСТРОЙКИ ***
 #
 # для режима тестирования True (избыточное логирование, некоторые другие функции), иначе False
-# DEBUG = True
-DEBUG = False
+# LOG_DEBUG = True
+LOG_DEBUG = False
 #
 # создаем папку для логов:
 # sudo mkdir /var/lib/email2forward
