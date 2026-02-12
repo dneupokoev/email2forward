@@ -5,20 +5,18 @@ Bitrix24 Chat-Safe Sender Module
 Использует метод im.disk.folder.get
 """
 #
-dv_file_version = '260211.09'
+dv_file_version = '260212.02'
 #
 import time
 import requests
 import json
-import logging
 from typing import Optional, Dict, Any
 from pathlib import Path
 import qrcode
 from io import BytesIO
+from loguru import logger
 
 import settings
-
-logger = logging.getLogger(__name__)
 
 
 class Bitrix24ChatSafeSender:
@@ -277,13 +275,6 @@ def generate_qr(data: str) -> BytesIO:
 if __name__ == '__main__':
     # === НАСТРОЙКИ ===
     TEST_CHAT_ID = "chat81328"  # ID чата для тестирования
-
-    # Настройка логирования
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler()]
-    )
 
     print("\n" + "=" * 80)
     print("🚀 ЗАПУСК ТЕСТА Bitrix24ChatSafeSender v260211.09")

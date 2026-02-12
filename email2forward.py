@@ -4,9 +4,9 @@
 #
 # Email to Forward: получает email, парсит его и отправляет содержимое письма в мессенджеры.
 #
-dv_file_version = '260212.01'
+dv_file_version = '260212.02'
 #
-# 260212.01:
+# 260212.02:
 # - добавлена отправка изображений в Bitrix24 напрямую в папку чата
 # - добавлено отслеживание уже отправленных изображений в рамках одного письма (если в письме 2 одинаковых файла, то отправится только один из них)
 #
@@ -84,7 +84,6 @@ if settings.LOG_DEBUG is True:
 else:
     logger.add(settings.PATH_TO_LOG + dv_file_name + ".log", level="INFO", rotation="00:00", retention='30 days', compression="gz", encoding="utf-8")
     logger.add(sys.stderr, level="INFO")
-logger.enable(dv_file_name)  # даем имя логированию
 
 
 #
